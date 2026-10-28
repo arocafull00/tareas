@@ -462,11 +462,6 @@ svg {
   animation: dictation-wobble 2.5s ease-in-out infinite alternate;
 }
 
-.dictation-orb svg {
-  width: 32px;
-  height: 32px;
-}
-
 .dictation-title {
   margin: 0;
   font-size: 22px;

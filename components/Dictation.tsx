@@ -10,7 +10,7 @@ export default function Dictation() {
         <div className="dictation-body">
           <div id="dictation-bubble" className="dictation-bubble" aria-hidden="true">
             <span className="dictation-halo" />
-            <span className="dictation-orb"><Mic /></span>
+            <span className="dictation-orb" />
           </div>
           <p id="dictation-title" className="dictation-title" role="status">Te escucho...</p>
           <p id="dictation-help" className="dictation-help">Al terminar, el dictado se añadirá al texto.</p>
