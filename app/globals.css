@@ -450,6 +450,7 @@ svg {
   opacity: calc(0.18 + var(--voice) * 0.25);
   filter: blur(16px);
   transform: scale(calc(1 + var(--voice) * 0.45));
+  transition: transform 180ms ease-out, opacity 180ms ease-out;
 }
 
 .dictation-orb {
@@ -459,6 +460,7 @@ svg {
   height: 112px;
   color: var(--dictation-ink);
   transform: scale(calc(1 + var(--voice) * 0.22));
+  transition: transform 180ms ease-out;
   animation: dictation-wobble 2.5s ease-in-out infinite alternate;
 }
 
@@ -527,10 +529,12 @@ svg {
   .dictation-orb {
     animation: none;
     transform: none;
+    transition: none;
   }
 
   .dictation-halo {
     transform: none;
+    transition: none;
   }
 }
 
