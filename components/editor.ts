@@ -880,6 +880,18 @@ document.addEventListener('visibilitychange', () => (document.hidden ? flushText
 window.addEventListener('online', refresh);
 visualViewport?.addEventListener('resize', fitViewport);
 visualViewport?.addEventListener('scroll', fitViewport);
+
+let contentHeight = 0;
+let grow: Animation | undefined;
+new ResizeObserver(() => {
+  const height = ui.content.clientHeight;
+  const delta = height - contentHeight;
+  contentHeight = height;
+  if (delta <= 0 || height === delta || ui.content.scrollHeight > height || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const to = ui.page.offsetHeight;
+  grow?.cancel();
+  grow = ui.page.animate({ maxHeight: [`${to - delta}px`, `${to}px`] }, { duration: 260, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+}).observe(ui.content);
 setInterval(refresh, POLL_MS);
 
 if (data.lists.length) {
