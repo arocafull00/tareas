@@ -82,7 +82,17 @@ function activeList() {
 }
 
 const byId = (id: string) => data.blocks.find(b => b.id === id);
-const pageBlocks = (listId: string) => data.blocks.filter(b => b.listId === listId);
+function pageBlocks(listId: string) {
+  const blocks = data.blocks.filter(b => b.listId === listId);
+  for (let i = 0; i < blocks.length; i++) {
+    let end = i;
+    while (blocks[end]?.type === 'todo') end++;
+    if (end - i < 2) continue;
+    blocks.splice(i, end - i, ...blocks.slice(i, end).sort((a, b) => +!!a.done - +!!b.done));
+    i = end - 1;
+  }
+  return blocks;
+}
 
 function lineOf(el: Element): HTMLElement;
 function lineOf(el: string | Element | null | undefined): HTMLElement | null | undefined;
@@ -464,6 +474,24 @@ function toggleDone(id: string) {
     el.classList.remove('just-done');
     void el.offsetWidth;
     el.classList.add('just-done');
+  }
+  reorder(el);
+}
+
+function reorder(moved: HTMLElement) {
+  const line = lineOf(moved);
+  const offset = document.activeElement === line ? caretOffset(line) : null;
+  const before = new Map([...nodes].map(([id, el]) => [id, el.getBoundingClientRect().top]));
+  renderPage(activeList()!);
+  if (offset !== null && document.activeElement !== line) setCaret(line, offset);
+  if (reducedMotion.matches) return;
+  for (const [id, el] of nodes) {
+    const dy = (before.get(id) ?? 0) - el.getBoundingClientRect().top;
+    if (!dy) continue;
+    el.animate(
+      { transform: [`translateY(${dy}px)`, 'none'], zIndex: el === moved ? [1, 1] : [0, 0] },
+      { duration: 420, easing: 'cubic-bezier(.2, .8, .2, 1)' }
+    );
   }
 }
 
