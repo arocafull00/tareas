@@ -1,12 +1,8 @@
-import { SignIn } from '@clerk/nextjs';
 import type { Metadata } from 'next';
+import Login from '@/components/Login';
 
 export const metadata: Metadata = { title: 'Entrar · Tareas' };
 
 export default function Page() {
-  return (
-    <main className="auth">
-      <SignIn />
-    </main>
-  );
+  return <Login />;
 }
