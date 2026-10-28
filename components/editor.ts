@@ -2,6 +2,7 @@ import { newBlock, applyChanges, insertIndex, toWhatsApp, fromWhatsApp } from '@
 import type { Block, BlockChanges, BlockProps, BlockType, Data, List } from '@/lib/shared';
 import type { Api, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
+import { initDictation } from './dictation-controller';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -46,6 +47,7 @@ const prefs = {
 const CACHE_KEYS = ['data', 'queue', 'activeList'];
 
 export function clearCache() {
+  cancelDictation();
   for (const key of CACHE_KEYS) {
     try {
       localStorage.removeItem(key);
@@ -58,6 +60,7 @@ let data = prefs.get<Data>('data', { lists: [], blocks: [] });
 let activeListId = prefs.get<string | null>('activeList', null);
 let editingTab = false;
 let pendingRender = false;
+let dictating = false;
 
 const nodes = new Map<string, HTMLElement>();
 const dirty = new Set<string>();
@@ -146,7 +149,7 @@ async function refresh() {
 }
 
 function receive(next: Data) {
-  if (syncing || dirty.size || queue.length) {
+  if (syncing || dirty.size || queue.length || dictating) {
     incoming = next;
     return;
   }
@@ -640,6 +643,48 @@ function currentBlockEl() {
   return document.activeElement?.closest?.<HTMLElement>('.block') || nodes.get(lastBlockId) || (ui.page.lastElementChild as HTMLElement | null);
 }
 
+function prepareDictation() {
+  const el = currentBlockEl();
+  if (!el) return null;
+  const id = el.dataset.id!;
+  const line = lineOf(el);
+  const selection = getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const inLine = range && line.contains(range.startContainer) && line.contains(range.endContainer);
+  const before = document.createRange();
+  before.selectNodeContents(line);
+  if (inLine) before.setEnd(range.startContainer, range.startOffset);
+  const start = before.toString().length;
+  const end = start + (inLine ? range.toString().length : 0);
+  dictating = true;
+  return (text: string) => {
+    dictating = false;
+    if (line.isConnected && byId(id)) {
+      setCaret(line, end);
+      const endRange = getSelection()!.getRangeAt(0).cloneRange();
+      setCaret(line, start);
+      const insertion = getSelection()!.getRangeAt(0);
+      insertion.setEnd(endRange.endContainer, endRange.endOffset);
+      if (text) {
+        const content = line.textContent;
+        const leading = start && !/\s/.test(content[start - 1]) ? ' ' : '';
+        const trailing = end < content.length && !/^[\s.,;:!?)]/.test(content.slice(end)) ? ' ' : '';
+        const addition = leading + text + trailing;
+        if (!document.execCommand('insertText', false, addition)) {
+          insertion.deleteContents();
+          const node = document.createTextNode(addition);
+          insertion.insertNode(node);
+          setCaret(line, start + addition.length);
+        }
+        updateEmpty(el);
+        markDirty(id);
+        flushText();
+      }
+    }
+    if (incoming && !syncing && !queue.length) receive(incoming);
+  };
+}
+
 function setType(type: BlockType) {
   const el = currentBlockEl();
   if (!el) return;
@@ -795,6 +840,7 @@ async function copyPage() {
 }
 
 ui.copy.onclick = copyPage;
+const cancelDictation = initDictation(prepareDictation);
 document.addEventListener('selectionchange', updateToolbar);
 
 $('new-list').onclick = newList;
