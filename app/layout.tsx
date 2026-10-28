@@ -17,6 +17,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f6f5f3' },
     { media: '(prefers-color-scheme: dark)', color: '#1b1b1f' },

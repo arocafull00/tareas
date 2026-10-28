@@ -275,7 +275,30 @@ function renderTabs(list = activeList()!) {
       return tab;
     })
   );
-  ui.tabList.querySelector('.active')?.scrollIntoView({ inline: 'nearest' });
+  const active = ui.tabList.querySelector<HTMLElement>('.active');
+  if (!active) return;
+  const tab = active.getBoundingClientRect();
+  const box = ui.tabList.getBoundingClientRect();
+  if (tab.left < box.left) ui.tabList.scrollLeft -= box.left - tab.left;
+  else if (tab.right > box.right) ui.tabList.scrollLeft += tab.right - box.right;
+}
+
+function keepCaretVisible() {
+  const line = document.activeElement;
+  if (!line?.classList.contains('line') || !getSelection()!.rangeCount) return;
+  const caret = caretRect(line as HTMLElement);
+  const box = ui.content.getBoundingClientRect();
+  const margin = 24;
+  if (caret.bottom > box.bottom - margin) ui.content.scrollTop += caret.bottom - box.bottom + margin;
+  else if (caret.top < box.top + margin) ui.content.scrollTop -= box.top + margin - caret.top;
+}
+
+function fitViewport() {
+  const vv = visualViewport!;
+  if (vv.scale > 1.01) return;
+  document.body.style.height = vv.height < innerHeight ? `${vv.height}px` : '';
+  if (scrollY) scrollTo(0, 0);
+  requestAnimationFrame(keepCaretVisible);
 }
 
 function listMenu(tab: HTMLElement, list: List) {
@@ -855,6 +878,8 @@ document.addEventListener('keydown', e => {
 window.addEventListener('pagehide', flushText);
 document.addEventListener('visibilitychange', () => (document.hidden ? flushText() : refresh()));
 window.addEventListener('online', refresh);
+visualViewport?.addEventListener('resize', fitViewport);
+visualViewport?.addEventListener('scroll', fitViewport);
 setInterval(refresh, POLL_MS);
 
 if (data.lists.length) {
