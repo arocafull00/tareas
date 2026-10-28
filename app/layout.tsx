@@ -26,6 +26,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__installPrompt=e})",
+          }}
+        />
+      </head>
       <body suppressHydrationWarning>
         <ClerkProvider localization={esES} appearance={{ variables: { colorPrimary: '#5b5bf0' } }}>
           {children}

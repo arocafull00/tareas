@@ -3,6 +3,7 @@
 import { UserButton, useAuth } from '@clerk/nextjs';
 import { memo, useEffect } from 'react';
 import { createApi } from '@/lib/api';
+import InstallButton from './InstallButton';
 
 const editor = () => import('./editor');
 
@@ -11,7 +12,8 @@ export default function TareasApp() {
 
   useEffect(() => {
     editor();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register(process.env.NODE_ENV === 'production' ? '/sw.js' : '/sw-dev.js', { scope: '/', updateViaCache: 'none' });
   }, []);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ const Shell = memo(function Shell() {
     <>
       <header className="titlebar">
         <h1 className="app-name">Tareas</h1>
+        <InstallButton />
       </header>
 
       <nav className="tabs">
