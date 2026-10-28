@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { esES } from '@clerk/localizations';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -25,10 +26,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body>
+      <body suppressHydrationWarning>
         <ClerkProvider localization={esES} appearance={{ variables: { colorPrimary: '#5b5bf0' } }}>
           {children}
         </ClerkProvider>
+        <Toaster position="bottom-center" />
       </body>
     </html>
   );

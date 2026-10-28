@@ -1,6 +1,7 @@
 import { newBlock, applyChanges, insertIndex, toWhatsApp, fromWhatsApp } from '@/lib/shared';
 import type { Block, BlockChanges, BlockProps, BlockType, Data, List } from '@/lib/shared';
 import type { Api, ApiError } from '@/lib/api';
+import { toast } from 'sonner';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -94,6 +95,18 @@ function send(method: string, ...args: unknown[]) {
 
 const retryable = (err: ApiError) => !err.status || err.status >= 500;
 
+let offline = false;
+function syncFailed() {
+  if (offline) return;
+  offline = true;
+  toast.warning('Sin conexión con el servidor', { id: 'sync', description: 'Tus cambios se guardan aquí y se sincronizarán al volver.' });
+}
+function syncOk() {
+  if (!offline) return;
+  offline = false;
+  toast.success('Conexión recuperada', { id: 'sync', description: undefined });
+}
+
 async function drain() {
   if (syncing || !api) return;
   syncing = true;
@@ -102,11 +115,12 @@ async function drain() {
       const [method, args] = queue[0];
       try {
         incoming = await api.call(method, ...args);
+        syncOk();
       } catch (e) {
         const err = e as ApiError;
         if (err.status === 401) return api.unauthorized();
-        if (retryable(err)) return;
-        alert(err.message);
+        if (retryable(err)) return syncFailed();
+        toast.error(err.message);
         incoming = await api.load().catch(() => incoming);
       }
       queue.shift();
@@ -124,8 +138,10 @@ async function refresh() {
   if (syncing) return;
   try {
     receive(await api.load());
+    syncOk();
   } catch (err) {
     if ((err as ApiError).status === 401) api.unauthorized();
+    else syncFailed();
   }
 }
 
@@ -284,7 +300,7 @@ function listMenu(tab: HTMLElement, list: List) {
 }
 
 function removeList(id: string) {
-  if (data.lists.length === 1) return alert('No se puede borrar la única lista');
+  if (data.lists.length === 1) return toast.error('No se puede borrar la única lista');
   data.lists = data.lists.filter(l => l.id !== id);
   data.blocks = data.blocks.filter(b => b.listId !== id);
   send('removeList', id);
@@ -328,21 +344,15 @@ function editListName(tab: HTMLElement, list: List) {
 
 function newList() {
   flushText();
-  const input = inlineListInput('', name => {
-    if (!name) return renderTabs();
-    let list = data.lists.find(l => l.name.toLowerCase() === name.toLowerCase());
-    if (!list) {
-      list = { id: crypto.randomUUID(), name };
-      data.lists.push(list);
-      send('addList', name, list.id);
-    }
-    activeListId = list.id;
-    render();
-    focusEnd();
-  });
-  input.placeholder = 'Nombre de la lista';
-  ui.tabList.append(input);
-  input.focus();
+  const taken = new Set(data.lists.map(l => l.name.toLowerCase()));
+  let name = 'Nueva hoja';
+  for (let n = 2; taken.has(name.toLowerCase()); n++) name = `Nueva hoja ${n}`;
+  const list = { id: crypto.randomUUID(), name };
+  data.lists.push(list);
+  send('addList', name, list.id);
+  activeListId = list.id;
+  render();
+  focusEnd();
 }
 
 function renderPage(list: List) {
@@ -770,7 +780,11 @@ for (const btn of ui.toolbar.querySelectorAll<HTMLElement>('[data-block]')) btn.
 let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 async function copyPage() {
   flushText();
-  await navigator.clipboard.writeText(toWhatsApp(pageBlocks(activeList()!.id)));
+  try {
+    await navigator.clipboard.writeText(toWhatsApp(pageBlocks(activeList()!.id)));
+  } catch {
+    return toast.error('No se pudo copiar al portapapeles');
+  }
   ui.copy.classList.add('copied');
   ui.copy.querySelector('.copy-label')!.textContent = 'Copiado';
   clearTimeout(copiedTimer);
