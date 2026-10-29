@@ -2,6 +2,7 @@ import { newBlock, applyChanges, insertIndex, toWhatsApp, fromWhatsApp } from '@
 import type { Block, BlockChanges, BlockProps, BlockType, Data, List } from '@/lib/shared';
 import type { Api, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
+import { play } from 'cuelume';
 import { initDictation } from './dictation-controller';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -386,6 +387,7 @@ function newList() {
   const list = { id: crypto.randomUUID(), name };
   data.lists.push(list);
   send('addList', name, list.id);
+  play('open', { theme: 'press' });
   activeListId = list.id;
   render();
   focusEnd();
@@ -470,6 +472,7 @@ function toggleDone(id: string) {
   if (block?.type !== 'todo') return;
   update(id, { done: !block.done });
   const el = nodes.get(id)!;
+  if (block.done) play('success', { theme: 'press' });
   if (block.done && !reducedMotion.matches) {
     el.classList.remove('just-done');
     void el.offsetWidth;
@@ -542,6 +545,7 @@ function splitBlock(el: HTMLElement) {
   const block = byId(id)!;
   const line = lineOf(el);
   if (!line.textContent && block.type !== 'text') return update(id, { type: 'text' });
+  if (['todo', 'bullet', 'number'].includes(block.type)) play('select', { theme: 'press' });
   const range = getSelection()!.getRangeAt(0);
   range.deleteContents();
   if (caretOffset(line) === 0 && line.textContent) {
