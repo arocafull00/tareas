@@ -472,7 +472,7 @@ function toggleDone(id: string) {
   if (block?.type !== 'todo') return;
   update(id, { done: !block.done });
   const el = nodes.get(id)!;
-  if (block.done) play('success', { theme: 'press' });
+  play(block.done ? 'success' : 'toggle', { theme: 'press' });
   if (block.done && !reducedMotion.matches) {
     el.classList.remove('just-done');
     void el.offsetWidth;
