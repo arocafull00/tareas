@@ -482,11 +482,13 @@ function toggleDone(id: string) {
 }
 
 function reorder(moved: HTMLElement) {
+  const scrollTop = ui.content.scrollTop;
   const line = lineOf(moved);
   const offset = document.activeElement === line ? caretOffset(line) : null;
   const before = new Map([...nodes].map(([id, el]) => [id, el.getBoundingClientRect().top]));
   renderPage(activeList()!);
-  if (offset !== null && document.activeElement !== line) setCaret(line, offset);
+  if (offset !== null && document.activeElement !== line) setCaret(line, offset, { preventScroll: true });
+  ui.content.scrollTop = scrollTop;
   if (reducedMotion.matches) return;
   for (const [id, el] of nodes) {
     const dy = (before.get(id) ?? 0) - el.getBoundingClientRect().top;
@@ -512,9 +514,9 @@ function rangeToCaret(line: HTMLElement) {
 const caretOffset = (line: HTMLElement) => rangeToCaret(line).toString().length;
 const collapsed = () => getSelection()!.isCollapsed;
 
-function setCaret(line: HTMLElement | null | undefined, offset = 0) {
+function setCaret(line: HTMLElement | null | undefined, offset = 0, options?: FocusOptions) {
   if (!line) return;
-  line.focus();
+  line.focus(options);
   const range = document.createRange();
   const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
   let node: Text | null;
