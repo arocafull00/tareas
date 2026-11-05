@@ -101,6 +101,30 @@ function lineOf(el: string | Element | null | undefined) {
   return (typeof el === 'string' ? nodes.get(el) : el)?.querySelector<HTMLElement>('.line');
 }
 
+function closestLine(node: Node | null) {
+  const el = node instanceof Element ? node : node?.parentElement;
+  return el?.closest<HTMLElement>('.line');
+}
+
+function selectionAcrossLines() {
+  const selection = getSelection()!;
+  const anchor = closestLine(selection.anchorNode);
+  const focus = closestLine(selection.focusNode);
+  return anchor && focus && anchor !== focus && ui.page.contains(anchor) && ui.page.contains(focus)
+    ? selection.getRangeAt(0) : null;
+}
+
+function linePosition(line: HTMLElement, x: number, y: number) {
+  const box = line.getBoundingClientRect();
+  const left = Math.min(Math.max(x, box.left), box.right - 1);
+  const top = Math.min(Math.max(y, box.top + 1), box.bottom - 1);
+  const pos = document.caretPositionFromPoint?.(left, top);
+  if (pos && line.contains(pos.offsetNode)) return { node: pos.offsetNode, offset: pos.offset };
+  const range = document.caretRangeFromPoint?.(left, top);
+  if (range && line.contains(range.startContainer)) return { node: range.startContainer, offset: range.startOffset };
+  return { node: line, offset: x < box.left ? 0 : line.childNodes.length };
+}
+
 function send(method: string, ...args: unknown[]) {
   queue.push([method, args]);
   saveCache();
@@ -688,7 +712,7 @@ function toggleCode() {
 }
 
 function format(cmd: string) {
-  if (!document.activeElement?.classList.contains('line')) return;
+  if (!document.activeElement?.classList.contains('line') || selectionAcrossLines()) return;
   if (cmd === 'code') toggleCode();
   else document.execCommand(cmd);
   updateToolbar();
@@ -701,6 +725,7 @@ function currentBlockEl() {
 }
 
 function prepareDictation() {
+  if (selectionAcrossLines()) return null;
   const el = currentBlockEl();
   if (!el) return null;
   const id = el.dataset.id!;
@@ -743,6 +768,7 @@ function prepareDictation() {
 }
 
 function setType(type: BlockType) {
+  if (selectionAcrossLines()) return;
   const el = currentBlockEl();
   if (!el) return;
   flushText();
@@ -772,7 +798,7 @@ function updateToolbar() {
 function onKeyDown(el: HTMLElement, e: KeyboardEvent) {
   const ctrl = e.ctrlKey || e.metaKey;
   const line = lineOf(el);
-  if (e.isComposing) return;
+  if (e.isComposing || selectionAcrossLines()) return;
   if (ctrl && e.shiftKey && ['Digit7', 'Digit8', 'Digit9'].includes(e.code)) {
     e.preventDefault();
     return setType(({ Digit7: 'number', Digit8: 'bullet', Digit9: 'todo' } as Record<string, BlockType>)[e.code]);
@@ -833,6 +859,7 @@ function bindBlock(el: HTMLElement) {
   };
   line.addEventListener('keydown', e => onKeyDown(el, e));
   line.addEventListener('beforeinput', e => {
+    if (selectionAcrossLines()) return e.preventDefault();
     if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
       e.preventDefault();
       splitBlock(el);
@@ -847,7 +874,7 @@ function bindBlock(el: HTMLElement) {
     if (inputType === 'insertText' && data === ' ' && markdownShortcut(el)) return;
     markDirty(id);
   });
-  line.addEventListener('paste', e => paste(el, e));
+  line.addEventListener('paste', e => selectionAcrossLines() ? e.preventDefault() : paste(el, e));
   line.addEventListener('drop', e => e.dataTransfer!.files.length && e.preventDefault());
   line.addEventListener('focus', () => {
     lastBlockId = id;
@@ -863,6 +890,59 @@ function bindBlock(el: HTMLElement) {
     updateToolbar();
   });
 }
+
+// Native mouse selection stops at the boundary of each editable line.
+let dragAnchor: { node: Node; offset: number } | null = null;
+let mouseSelection = false;
+ui.page.addEventListener('pointerdown', e => {
+  mouseSelection = e.pointerType === 'mouse';
+});
+
+ui.page.addEventListener('mousedown', e => {
+  dragAnchor = null;
+  const line = closestLine(e.target as Node);
+  if (!mouseSelection || !line || e.button !== 0 || e.detail > 1) return;
+  e.preventDefault();
+  const selection = getSelection()!;
+  const anchorLine = closestLine(selection.anchorNode);
+  if (e.shiftKey && anchorLine && ui.page.contains(anchorLine)) {
+    dragAnchor = { node: selection.anchorNode!, offset: selection.anchorOffset };
+    const point = linePosition(line, e.clientX, e.clientY);
+    selection.setBaseAndExtent(dragAnchor.node, dragAnchor.offset, point.node, point.offset);
+  } else {
+    line.focus({ preventScroll: true });
+    dragAnchor = linePosition(line, e.clientX, e.clientY);
+    selection.collapse(dragAnchor.node, dragAnchor.offset);
+  }
+});
+
+ui.page.addEventListener('mousemove', e => {
+  if (e.buttons !== 1 || !dragAnchor?.node.isConnected) return;
+  const line = lineOf((e.target as Element).closest('.block'));
+  if (!line) return;
+  const point = linePosition(line, e.clientX, e.clientY);
+  getSelection()!.setBaseAndExtent(dragAnchor.node, dragAnchor.offset, point.node, point.offset);
+});
+
+document.addEventListener('mouseup', () => {
+  dragAnchor = null;
+});
+
+ui.page.addEventListener('copy', e => {
+  const range = selectionAcrossLines();
+  if (!range || !e.clipboardData) return;
+  const lines = range.cloneContents().querySelectorAll('.line');
+  e.clipboardData.setData('text/plain', Array.from(lines, line => line.textContent).join('\n'));
+  e.preventDefault();
+});
+
+ui.page.addEventListener('cut', e => {
+  if (selectionAcrossLines()) e.preventDefault();
+});
+
+ui.page.addEventListener('dragstart', e => {
+  if (selectionAcrossLines()) e.preventDefault();
+});
 
 ui.content.addEventListener('mousedown', e => {
   if (e.target !== ui.content && e.target !== ui.page) return;
