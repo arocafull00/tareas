@@ -289,7 +289,7 @@ function renderTabs(list = activeList()!) {
         flushText();
         activeListId = l.id;
         render();
-        focusEnd();
+        ui.content.scrollTop = 0;
       };
       tab.ondblclick = () => editListName(tab, l);
       tab.oncontextmenu = e => {
@@ -1010,12 +1010,9 @@ setInterval(refresh, POLL_MS);
 
 if (data.lists.length) {
   render();
-  if (matchMedia('(hover: hover)').matches) focusEnd();
 }
 
 export async function start(backend: Api) {
   api = backend;
-  const fresh = !ui.page.childElementCount;
   await refresh();
-  if (fresh && matchMedia('(hover: hover)').matches) focusEnd();
 }
