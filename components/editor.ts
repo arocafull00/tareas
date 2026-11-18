@@ -57,7 +57,8 @@ export function clearCache() {
 }
 
 let api: Api | undefined;
-let data = prefs.get<Data>('data', { lists: [], blocks: [] });
+const cached = prefs.get<Partial<Data>>('data', {});
+let data: Data = { lists: cached.lists ?? [], blocks: cached.blocks ?? [] };
 let activeListId = prefs.get<string | null>('activeList', null);
 let editingTab = false;
 let pendingRender = false;

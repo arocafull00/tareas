@@ -22,9 +22,14 @@ export function createApi(getToken: () => Promise<string | null>, unauthorized: 
     return json;
   }
 
+  const valid = (d: Data | undefined): Data => {
+    if (!d || !Array.isArray(d.lists) || !Array.isArray(d.blocks)) throw new Error('Respuesta inválida del servidor');
+    return d;
+  };
+
   return {
-    load: () => request<Data>('/api/data'),
-    call: (method, ...args) => request<{ data: Data }>('/api/rpc', { method, args }).then(r => r.data),
+    load: () => request<Data>('/api/data').then(valid),
+    call: (method, ...args) => request<{ data: Data }>('/api/rpc', { method, args }).then(r => valid(r.data)),
     unauthorized,
   };
 }
