@@ -1,5 +1,5 @@
-import { newBlock, applyChanges, insertIndex, toWhatsApp, fromWhatsApp } from '@/lib/shared';
-import type { Block, BlockChanges, BlockProps, BlockType, Data, List } from '@/lib/shared';
+import { newBlock, applyChanges, insertIndex, taskMoveIndices, toWhatsApp, fromWhatsApp } from '@/lib/shared';
+import type { Block, BlockChanges, BlockProps, BlockType, Data, List, TaskPlacement } from '@/lib/shared';
 import type { Api, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
 import { play } from 'cuelume';
@@ -13,6 +13,14 @@ const BLOCK_HTML = `<div class="block">
   </button>
   <span class="marker"></span>
   <div class="line" contenteditable="true"></div>
+  <div class="task-moves" hidden>
+    <button class="icon-btn" data-move="before" aria-label="Subir tarea" title="Subir tarea">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 9.5l4-4 4 4"/></svg>
+    </button>
+    <button class="icon-btn" data-move="after" aria-label="Bajar tarea" title="Bajar tarea">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5l4 4 4-4"/></svg>
+    </button>
+  </div>
   <button class="icon-btn delete" tabindex="-1" title="Eliminar">
     <svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/></svg>
   </button>
@@ -437,6 +445,17 @@ function renderPage(list: List) {
     const el = blockEl(b);
     if (ui.page.children[i] !== el) ui.page.insertBefore(el, ui.page.children[i] || null);
   });
+  for (const el of nodes.values()) {
+    const buttons = el.querySelectorAll<HTMLButtonElement>('[data-move]');
+    let movable = false;
+    for (const button of buttons) {
+      const available = !!taskNeighbor(el, button.dataset.move as TaskPlacement);
+      button.setAttribute('aria-disabled', String(!available));
+      button.tabIndex = available ? 0 : -1;
+      movable ||= available;
+    }
+    el.querySelector<HTMLElement>('.task-moves')!.hidden = !movable;
+  }
   updateToolbar();
 }
 
@@ -476,10 +495,12 @@ function createBlocks(listId: string, afterId: string | null, props: BlockProps[
 function update(id: string, changes: BlockChanges) {
   const block = byId(id);
   if (!block) return;
+  const previousType = block.type;
   if ('text' in changes) dirty.delete(id);
   applyChanges(block, changes);
   send('updateBlock', id, changes);
-  blockEl(block);
+  if (block.type !== previousType) reorder(nodes.get(id)!);
+  else blockEl(block);
   renderTabs();
   updateToolbar();
 }
@@ -506,13 +527,37 @@ function toggleDone(id: string) {
   reorder(el);
 }
 
+function taskNeighbor(el: HTMLElement, placement: TaskPlacement) {
+  const sibling = (placement === 'before' ? el.previousElementSibling : el.nextElementSibling) as HTMLElement | null;
+  return el.dataset.type === 'todo' && sibling?.dataset.type === 'todo'
+    && sibling.classList.contains('done') === el.classList.contains('done') ? sibling : null;
+}
+
+function moveTask(el: HTMLElement, placement: TaskPlacement) {
+  flushText();
+  const target = taskNeighbor(el, placement);
+  if (!target) return;
+  const id = el.dataset.id!;
+  const targetId = target.dataset.id!;
+  const indices = taskMoveIndices(data.blocks, id, targetId, placement);
+  if (!indices) return;
+  const [from, to] = indices;
+  const [task] = data.blocks.splice(from, 1);
+  data.blocks.splice(to, 0, task);
+  send('moveTask', id, targetId, placement);
+  reorder(el);
+}
+
 function reorder(moved: HTMLElement) {
   const scrollTop = ui.content.scrollTop;
-  const line = lineOf(moved);
-  const offset = document.activeElement === line ? caretOffset(line) : null;
+  const focused = document.activeElement as HTMLElement | null;
+  const offset = focused?.classList.contains('line') ? caretOffset(focused) : null;
   const before = new Map([...nodes].map(([id, el]) => [id, el.getBoundingClientRect().top]));
   renderPage(activeList()!);
-  if (offset !== null && document.activeElement !== line) setCaret(line, offset, { preventScroll: true });
+  if (focused && focused !== document.activeElement && ui.page.contains(focused)) {
+    if (offset !== null) setCaret(focused, offset, { preventScroll: true });
+    else focused.focus({ preventScroll: true });
+  }
   ui.content.scrollTop = scrollTop;
   if (reducedMotion.matches) return;
   for (const [id, el] of nodes) {
@@ -846,6 +891,9 @@ function bindBlock(el: HTMLElement) {
   const id = el.dataset.id!;
   const line = lineOf(el);
   for (const btn of el.querySelectorAll('button')) btn.onmousedown = e => e.preventDefault();
+  for (const btn of el.querySelectorAll<HTMLButtonElement>('[data-move]')) {
+    btn.onclick = () => moveTask(el, btn.dataset.move as TaskPlacement);
+  }
   el.querySelector<HTMLElement>('.check')!.onclick = () => toggleDone(id);
   el.querySelector<HTMLElement>('.star')!.onclick = () => update(id, { important: !byId(id)?.important });
   el.querySelector<HTMLElement>('.delete')!.onclick = () => {

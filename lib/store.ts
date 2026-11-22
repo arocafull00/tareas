@@ -1,8 +1,8 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
 import { db, schema } from '../db';
-import { applyChanges, newBlock } from './shared';
-import type { Block, BlockChanges, BlockProps, Data, List } from './shared';
+import { applyChanges, newBlock, taskMoveIndices } from './shared';
+import type { Block, BlockChanges, BlockProps, Data, List, TaskPlacement } from './shared';
 
 const { lists, blocks } = schema;
 const DEFAULT_LIST = 'Tareas';
@@ -10,7 +10,8 @@ const DEFAULT_LIST = 'Tareas';
 type Row = typeof blocks.$inferSelect;
 type Loaded = Data & { rows: Row[] };
 
-const byPosition = (a: Row, b: Row) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0);
+const byPosition = (a: Row, b: Row) =>
+  (a.position < b.position ? -1 : a.position > b.position ? 1 : a.id.localeCompare(b.id));
 
 function toBlock(row: Row): Block {
   const { userId, position, done, important, completedAt, ...block } = row;
@@ -154,6 +155,34 @@ export async function updateBlock(userId: string, id: string, changes: BlockChan
     .from(blocks)
     .where(and(eq(blocks.id, id), eq(blocks.userId, userId)));
   return row ? saveBlock(userId, applyChanges(toBlock(row), changes)) : null;
+}
+
+export async function moveTask(userId: string, id: string, targetId: string, placement: TaskPlacement) {
+  const { rows } = await load(userId);
+  const task = rows.find(row => row.id === id);
+  if (!task) return;
+  const page = rows.filter(row => row.listId === task.listId);
+  const indices = taskMoveIndices(page, id, targetId, placement);
+  if (!indices) return;
+  const [from, to] = indices;
+  page.splice(from, 1);
+  const previous = page[to - 1]?.position ?? null;
+  const next = page[to]?.position ?? null;
+  const setPosition = (row: Row, position: string) => db.update(blocks).set({ position })
+    .where(and(eq(blocks.id, row.id), eq(blocks.userId, userId), eq(blocks.position, row.position)));
+
+  if (previous !== next) {
+    await setPosition(task, generateKeyBetween(previous, next));
+    return;
+  }
+
+  // Concurrent inserts or moves can leave several rows with the same position.
+  let end = to;
+  while (page[end]?.position === next) end++;
+  const moved = [task, ...page.slice(to, end)];
+  const keys = generateNKeysBetween(previous, page[end]?.position ?? null, moved.length);
+  const [first, ...rest] = moved.map((row, i) => setPosition(row, keys[i]));
+  await db.batch([first, ...rest]);
 }
 
 export async function removeBlock(userId: string, id: string) {

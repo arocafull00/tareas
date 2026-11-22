@@ -717,6 +717,33 @@ svg {
   margin-top: 3.5px;
 }
 
+.task-moves {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.task-moves[hidden] {
+  display: none;
+}
+
+.task-moves .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.task-moves .icon-btn[aria-disabled="true"] {
+  background: none;
+  color: var(--muted);
+  opacity: .4;
+  cursor: default;
+}
+
+.task-moves .icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .block[data-type="todo"] .star,
 .block[data-type="todo"] .delete {
   display: grid;
@@ -874,6 +901,12 @@ svg {
     opacity: 1;
   }
 
+  .task-moves .icon-btn {
+    width: 32px;
+    height: 32px;
+    margin-top: -2px;
+  }
+
   .block[data-type="todo"] .delete {
     color: var(--line);
   }
@@ -897,6 +930,20 @@ svg {
 
   .line code {
     font-size: 14.5px;
+  }
+}
+
+@media (hover: none) and (max-width: 360px) {
+  .block[data-type="todo"] {
+    gap: 4px;
+  }
+
+  .block[data-type="todo"] .icon-btn {
+    width: 26px;
+  }
+
+  .task-moves {
+    gap: 0;
   }
 }
 

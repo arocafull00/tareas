@@ -1,7 +1,7 @@
 import { withUser } from '@/lib/auth';
 import * as store from '@/lib/store';
 
-const METHODS = ['addTask', 'addNote', 'updateTask', 'removeTask', 'insertBlocks', 'updateBlock', 'removeBlock', 'addList', 'renameList', 'removeList'] as const;
+const METHODS = ['addTask', 'addNote', 'updateTask', 'removeTask', 'insertBlocks', 'updateBlock', 'moveTask', 'removeBlock', 'addList', 'renameList', 'removeList'] as const;
 
 type Method = (typeof METHODS)[number];
 

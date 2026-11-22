@@ -1,6 +1,7 @@
 const BLOCK_TYPES = ['text', 'todo', 'bullet', 'number', 'quote'] as const;
 
 type BlockType = (typeof BLOCK_TYPES)[number];
+type TaskPlacement = 'before' | 'after';
 
 interface List {
   id: string;
@@ -74,6 +75,24 @@ function insertIndex(data: Data, listId: string, afterId?: string | null): numbe
   return afterId || first < 0 ? data.blocks.length : first;
 }
 
+function taskMoveIndices(
+  blocks: (Pick<Block, 'id' | 'listId' | 'type'> & { done?: boolean | null })[],
+  id: string,
+  targetId: string,
+  placement: TaskPlacement,
+): [from: number, to: number] | null {
+  if (placement !== 'before' && placement !== 'after') return null;
+  const from = blocks.findIndex(b => b.id === id);
+  const target = blocks.findIndex(b => b.id === targetId);
+  if (from === target || from < 0 || target < 0) return null;
+  const task = blocks[from];
+  if (!!task.done !== !!blocks[target].done) return null;
+  if (blocks.slice(Math.min(from, target), Math.max(from, target) + 1)
+    .some(b => b.type !== 'todo' || b.listId !== task.listId)) return null;
+  const to = target + Number(placement === 'after') - Number(from < target);
+  return from === to ? null : [from, to];
+}
+
 function toWhatsApp(blocks: Block[]): string {
   let n = 0;
   return blocks
@@ -108,5 +127,5 @@ function fromWhatsApp(text: string): (BlockChanges & { text: string })[] {
   });
 }
 
-export { BLOCK_TYPES, applyChanges, newBlock, insertIndex, toWhatsApp, fromWhatsApp };
-export type { BlockType, List, Block, Data, BlockChanges, BlockProps };
+export { BLOCK_TYPES, applyChanges, newBlock, insertIndex, taskMoveIndices, toWhatsApp, fromWhatsApp };
+export type { BlockType, List, Block, Data, BlockChanges, BlockProps, TaskPlacement };
